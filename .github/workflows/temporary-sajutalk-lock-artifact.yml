@@ -35,7 +35,7 @@ jobs:
       - name: Generate canonical package lock
         working-directory: .tmp-sajutalk-lockgen
         run: |
-          rm -f package-lock.json
+          rm -f package-lock.json package-lock.b64
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
           node <<'NODE'
           const assert = require('node:assert/strict');
@@ -47,19 +47,23 @@ jobs:
           assert.deepStrictEqual(root.dependencies, pkg.dependencies, 'runtime dependencies differ');
           assert.deepStrictEqual(root.devDependencies, pkg.devDependencies, 'development dependencies differ');
           if (Object.keys(lock.packages).some((key) => key.startsWith('../'))) throw new Error('external workspace record remains');
-          fs.writeFileSync('package-lock.json', `${JSON.stringify(lock)}\n`);
+          const canonical = `${JSON.stringify(lock)}\n`;
+          fs.writeFileSync('package-lock.json', canonical);
+          const encoded = Buffer.from(canonical, 'utf8').toString('base64');
+          const wrapped = encoded.match(/.{1,800}/gu)?.join('\n') ?? encoded;
+          fs.writeFileSync('package-lock.b64', `${wrapped}\n`);
           NODE
 
       - name: Commit generated lock
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .tmp-sajutalk-lockgen/package-lock.json
+          git add .tmp-sajutalk-lockgen/package-lock.json .tmp-sajutalk-lockgen/package-lock.b64
           if git diff --cached --quiet; then
             echo 'Canonical lock is already committed.'
             exit 0
           fi
-          git commit -m 'Generate minified canonical SajuTalk package lock'
+          git commit -m 'Prepare canonical SajuTalk package lock transfer'
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
 
       - name: Upload canonical lock
