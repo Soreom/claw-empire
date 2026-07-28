@@ -47,6 +47,7 @@ jobs:
           assert.deepStrictEqual(root.dependencies, pkg.dependencies, 'runtime dependencies differ');
           assert.deepStrictEqual(root.devDependencies, pkg.devDependencies, 'development dependencies differ');
           if (Object.keys(lock.packages).some((key) => key.startsWith('../'))) throw new Error('external workspace record remains');
+          fs.writeFileSync('package-lock.json', `${JSON.stringify(lock)}\n`);
           NODE
 
       - name: Commit generated lock
@@ -58,7 +59,7 @@ jobs:
             echo 'Canonical lock is already committed.'
             exit 0
           fi
-          git commit -m 'Generate canonical SajuTalk package lock'
+          git commit -m 'Generate minified canonical SajuTalk package lock'
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
 
       - name: Upload canonical lock
