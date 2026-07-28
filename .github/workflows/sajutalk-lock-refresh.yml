@@ -1,0 +1,66 @@
+name: Temporary SajuTalk lock refresh
+
+on:
+  push:
+    branches:
+      - agent/sajutalk-lock-refresh-20260728
+    paths:
+      - '.github/workflows/sajutalk-lock-refresh.yml'
+      - '.tmp-sajutalk-lockgen/package.json'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sajutalk-lock-refresh
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout temporary branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/sajutalk-lock-refresh-20260728
+          persist-credentials: true
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Pin npm 11.4.2
+        run: npm install --global npm@11.4.2
+
+      - name: Generate and verify canonical lockfile
+        working-directory: .tmp-sajutalk-lockgen
+        run: |
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --ignore-scripts --no-audit --no-fund
+          node <<'NODE'
+          const fs = require('node:fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          const root = lock.packages?.[''];
+          if (!root) throw new Error('package-lock root record is missing');
+          if (JSON.stringify(root.dependencies) !== JSON.stringify(pkg.dependencies)) throw new Error('runtime dependencies differ');
+          if (JSON.stringify(root.devDependencies) !== JSON.stringify(pkg.devDependencies)) throw new Error('development dependencies differ');
+          if (Object.keys(lock.packages).some((key) => key.startsWith('../'))) throw new Error('external workspace record remains');
+          if (root.dependencies.next !== '16.2.12') throw new Error('Next.js is not exactly pinned');
+          if (root.devDependencies['eslint-config-next'] !== '16.2.12') throw new Error('eslint-config-next is not exactly pinned');
+          NODE
+
+      - name: Commit generated lockfile
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .tmp-sajutalk-lockgen/package-lock.json
+          if git diff --cached --quiet; then
+            echo 'Lockfile already canonical.'
+            exit 0
+          fi
+          git commit -m 'Generate temporary SajuTalk package lock'
+          git push origin HEAD:agent/sajutalk-lock-refresh-20260728
