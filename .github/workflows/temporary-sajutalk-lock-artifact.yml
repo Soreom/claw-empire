@@ -7,7 +7,7 @@ on:
       - '.github/workflows/sajutalk-lock-refresh.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: temporary-sajutalk-lock-${{ github.event.pull_request.number }}
@@ -18,8 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout pull request
+      - name: Checkout pull-request head
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
 
       - name: Setup Node.js 24
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -30,13 +33,10 @@ jobs:
         run: npm install --global npm@11.4.2
 
       - name: Generate canonical package lock
-        id: generate
-        continue-on-error: true
         working-directory: .tmp-sajutalk-lockgen
         run: |
           rm -f package-lock.json
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund 2>&1 | tee lock-generation.log
-          test ${PIPESTATUS[0]} -eq 0
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
           node <<'NODE'
           const assert = require('node:assert/strict');
           const fs = require('node:fs');
@@ -49,19 +49,23 @@ jobs:
           if (Object.keys(lock.packages).some((key) => key.startsWith('../'))) throw new Error('external workspace record remains');
           NODE
 
-      - name: Upload lock and diagnostics
-        if: always()
+      - name: Commit generated lock
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .tmp-sajutalk-lockgen/package-lock.json
+          if git diff --cached --quiet; then
+            echo 'Canonical lock is already committed.'
+            exit 0
+          fi
+          git commit -m 'Generate canonical SajuTalk package lock'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
+      - name: Upload canonical lock
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: sajutalk-canonical-package-lock
-          path: |
-            .tmp-sajutalk-lockgen/package-lock.json
-            .tmp-sajutalk-lockgen/lock-generation.log
-            /home/runner/.npm/_logs/*.log
+          path: .tmp-sajutalk-lockgen/package-lock.json
           include-hidden-files: true
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 1
-
-      - name: Fail when generation failed
-        if: steps.generate.outcome != 'success'
-        run: exit 1
