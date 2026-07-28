@@ -21,7 +21,7 @@
     "react-dom": "^19.2.6"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "c8": "^11.0.0",
