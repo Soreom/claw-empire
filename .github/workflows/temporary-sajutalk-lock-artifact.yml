@@ -1,0 +1,55 @@
+name: Temporary SajuTalk lock artifact
+
+on:
+  pull_request:
+    paths:
+      - '.tmp-sajutalk-lockgen/package.json'
+      - '.github/workflows/sajutalk-lock-refresh.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: temporary-sajutalk-lock-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Pin npm 11.4.2
+        run: npm install --global npm@11.4.2
+
+      - name: Generate canonical package lock
+        working-directory: .tmp-sajutalk-lockgen
+        run: |
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --ignore-scripts --no-audit --no-fund
+          node <<'NODE'
+          const fs = require('node:fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          const root = lock.packages?.[''];
+          if (!root) throw new Error('package-lock root record is missing');
+          if (JSON.stringify(root.dependencies) !== JSON.stringify(pkg.dependencies)) throw new Error('runtime dependencies differ');
+          if (JSON.stringify(root.devDependencies) !== JSON.stringify(pkg.devDependencies)) throw new Error('development dependencies differ');
+          if (Object.keys(lock.packages).some((key) => key.startsWith('../'))) throw new Error('external workspace record remains');
+          NODE
+
+      - name: Upload canonical lock
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sajutalk-canonical-package-lock
+          path: .tmp-sajutalk-lockgen/package-lock.json
+          if-no-files-found: error
+          retention-days: 1
