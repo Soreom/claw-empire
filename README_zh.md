@@ -11,7 +11,6 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-2.0.0-blue" alt="Releases" />
-  <a href="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml"><img src="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -624,25 +623,22 @@ pnpm start              # 启动 API/后端服务（生产模式下会提供 dis
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### CI 校验（当前 PR 流水线）
+### 本地校验
 
-每个 Pull Request 都会执行 `.github/workflows/ci.yml`，顺序如下：
-
-1. 工作流文件隐藏/双向 Unicode 守卫
-2. `pnpm install --frozen-lockfile`
-3. `pnpm run format:check`
-4. `pnpm run lint`
-5. `pnpm exec playwright install --with-deps`
-6. `pnpm run test:ci`（`test:web --coverage` + `test:api --coverage` + `test:e2e`）
-
-PR 前本地建议校验：
+合并或发布前，请在仓库根目录显式运行以下命令：
 
 ```bash
+pnpm install --frozen-lockfile
 pnpm run format:check
 pnpm run lint
+pnpm run openapi:check
+pnpm exec tsc -p tsconfig.json --noEmit
 pnpm run build
+pnpm exec playwright install
 pnpm run test:ci
 ```
+
+`test:ci` 会运行 `test:web --coverage`、`test:api --coverage` 和 `test:e2e`。
 
 ### 通信 QA 检查（v1.1.6）
 

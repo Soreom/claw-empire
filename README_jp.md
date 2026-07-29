@@ -11,7 +11,6 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-2.0.0-blue" alt="Releases" />
-  <a href="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml"><img src="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -624,25 +623,22 @@ pnpm start              # API/バックエンドサーバーを起動（本番�
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### CI検証（現在のPRパイプライン）
+### ローカル検証
 
-すべての Pull Request で `.github/workflows/ci.yml` は次の順に実行されます。
-
-1. ワークフローファイルの hidden/bidi Unicode ガード
-2. `pnpm install --frozen-lockfile`
-3. `pnpm run format:check`
-4. `pnpm run lint`
-5. `pnpm exec playwright install --with-deps`
-6. `pnpm run test:ci`（`test:web --coverage` + `test:api --coverage` + `test:e2e`）
-
-PR 前のローカル推奨チェック:
+マージまたはリリースの前に、リポジトリのルートで次のコマンドを明示的に実行してください。
 
 ```bash
+pnpm install --frozen-lockfile
 pnpm run format:check
 pnpm run lint
+pnpm run openapi:check
+pnpm exec tsc -p tsconfig.json --noEmit
 pnpm run build
+pnpm exec playwright install
 pnpm run test:ci
 ```
+
+`test:ci` は `test:web --coverage`、`test:api --coverage`、`test:e2e` を実行します。
 
 ### 通信QAチェック（v1.1.6）
 
